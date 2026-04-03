@@ -1,4 +1,4 @@
-name: AZD Deployment
+name: Azure Dev Deploy
 on:
   workflow_dispatch:
   push:
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     env:
       AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
@@ -26,24 +26,37 @@ jobs:
       AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
       AZURE_USER_OBJECT_ID: ''
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Set timestamp and env name
+        run: |
+          HHMM=$(date -u +'%H%M')
+          echo "AZURE_ENV_NAME=azd-${{ vars.AZURE_ENV_NAME }}-${HHMM}" >> $GITHUB_ENV
+          
       - name: Install azd
         uses: Azure/setup-azd@v2
-      - name: Azure Developer CLI Login
-        run: |
-          azd auth login `
-            --client-id "$Env:AZURE_CLIENT_ID" `
-            --federated-credential-provider "github" `
-            --tenant-id "$Env:AZURE_TENANT_ID" 
-        shell: pwsh
       - name: Azure CLI Login
         uses: azure/login@v2
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Azure Developer CLI Login
+        shell: bash
+        run: |
+          azd auth login \
+            --client-id "$AZURE_CLIENT_ID" \
+            --federated-credential-provider "github" \
+            --tenant-id "$AZURE_TENANT_ID"
       - name: Provision Infrastructure
-        run: azd provision --no-prompt
+        shell: bash
+        run: |
+          if ! azd env select "$AZURE_ENV_NAME"; then
+            azd env new "$AZURE_ENV_NAME" --subscription "$AZURE_SUBSCRIPTION_ID" --location "$AZURE_LOCATION" --no-prompt
+          fi
+
+          azd config set defaults.subscription "$AZURE_SUBSCRIPTION_ID"
+          azd provision --no-prompt
         env:
            AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}

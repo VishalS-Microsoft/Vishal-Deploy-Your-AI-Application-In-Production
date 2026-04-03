@@ -1,9 +1,8 @@
 name: AZD Template Validation
-on: 
+on:
+  schedule:
+    - cron: '30 1 * * 4' # Every Thursday at 7:00 AM IST (1:30 AM UTC)
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -17,6 +16,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set timestamp
+        run: echo "HHMM=$(date -u +'%H%M')" >> $GITHUB_ENV
+
       # This postprovision cleanup step (Stage 19) has been removed from azure.yaml because
       # azd down was failing in the pipeline. As a workaround, we are removing this step
       # to ensure the pipeline runs successfully.
@@ -24,17 +26,19 @@ jobs:
         run: |
           yq -i 'del(.hooks.postprovision[] | select(.run == "./submodules/ai-landing-zone/bicep/scripts/postprovision.ps1"))' azure.yaml
 
-      - uses: microsoft/template-validation-action@Latest
+      - uses: microsoft/template-validation-action@v0.4.3
         with:
           validateAzd: ${{ vars.TEMPLATE_VALIDATE_AZD }}
+          validateTests: ${{ vars.TEMPLATE_VALIDATE_TESTS }}
           useDevContainer: ${{ vars.TEMPLATE_USE_DEV_CONTAINER }}
         id: validation
         env:
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+          AZURE_ENV_NAME: azd-${{ vars.AZURE_ENV_NAME }}-${{ env.HHMM }}
           AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_AI_MODEL_CAPACITY: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           fabricCapacityMode: 'none'
       - name: print result
