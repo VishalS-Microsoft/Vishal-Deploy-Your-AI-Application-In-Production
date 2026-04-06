@@ -101,6 +101,18 @@ export AZURE_LOCATION="${AZURE_LOCATION}"
 export AZURE_RESOURCE_GROUP="${AZURE_RESOURCE_GROUP}"
 export AZURE_SUBSCRIPTION_ID="${AZURE_SUBSCRIPTION_ID}"
 
+if ! az group show --name "$AZURE_RESOURCE_GROUP" --subscription "$AZURE_SUBSCRIPTION_ID" --only-show-errors >/dev/null 2>&1; then
+    echo "    [i] Resource group '$AZURE_RESOURCE_GROUP' not found. Creating it in '$AZURE_LOCATION'..."
+    if az group create --name "$AZURE_RESOURCE_GROUP" --location "$AZURE_LOCATION" --subscription "$AZURE_SUBSCRIPTION_ID" --only-show-errors >/dev/null; then
+        echo "    [+] Resource group ready: $AZURE_RESOURCE_GROUP"
+    else
+        echo "[X] Failed to create resource group '$AZURE_RESOURCE_GROUP'"
+        exit 1
+    fi
+else
+    echo "    [+] Resource group ready: $AZURE_RESOURCE_GROUP"
+fi
+
 # Run the AI Landing Zone preprovision script
 PREPROVISION_SCRIPT="$AI_LANDING_ZONE_PATH/scripts/preprovision.sh"
 

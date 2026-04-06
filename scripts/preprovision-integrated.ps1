@@ -249,12 +249,54 @@ if ($null -eq $az) {
     exit 1
 }
 
+function Ensure-ResourceGroupExists {
+    param(
+        [string]$Name,
+        [string]$Location,
+        [string]$SubscriptionId
+    )
+
+    $showArgs = @('group', 'show', '--name', $Name, '--only-show-errors')
+    if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
+        $showArgs += @('--subscription', $SubscriptionId)
+    }
+
+    & az @showArgs 1>$null 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "    [+] Resource group ready: $Name" -ForegroundColor Green
+        return
+    }
+
+    Write-Host "    [i] Resource group '$Name' not found. Creating it in '$Location'..." -ForegroundColor Yellow
+
+    $createArgs = @('group', 'create', '--name', $Name, '--location', $Location, '--only-show-errors')
+    if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
+        $createArgs += @('--subscription', $SubscriptionId)
+    }
+
+    $createOutput = & az @createArgs 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $createMessage = (($createOutput | Out-String).Trim())
+        if ([string]::IsNullOrWhiteSpace($createMessage)) {
+            $createMessage = 'Unknown error while creating the resource group.'
+        }
+
+        Write-Host "[X] Failed to create resource group '$Name'" -ForegroundColor Red
+        Write-Host "    Failure: $createMessage" -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Host "    [+] Resource group ready: $Name" -ForegroundColor Green
+}
+
 Write-Host "    [+] Submodule template: $submoduleMain" -ForegroundColor Green
 Write-Host "    [+] Parent params file: $parentParamsFile" -ForegroundColor Green
 
 if (-not [string]::IsNullOrWhiteSpace($SubscriptionId)) {
     & az account set --subscription $SubscriptionId | Out-Null
 }
+
+Ensure-ResourceGroupExists -Name $ResourceGroup -Location $Location -SubscriptionId $SubscriptionId
 
 $envNameForDeployment = $env:AZURE_ENV_NAME
 if ([string]::IsNullOrWhiteSpace($envNameForDeployment)) { $envNameForDeployment = 'default' }
