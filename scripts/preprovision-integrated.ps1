@@ -196,16 +196,16 @@ if ([string]::IsNullOrWhiteSpace($Location) -or [string]::IsNullOrWhiteSpace($Re
 
 # Navigate to AI Landing Zone submodule
 $aiLandingZonePath = Join-Path $PSScriptRoot ".." "submodules" "ai-landing-zone"
+$submoduleMain = Join-Path $aiLandingZonePath "main.bicep"
 
-if (-not (Test-Path $aiLandingZonePath)) {
-    Write-Host "[!] AI Landing Zone submodule not initialized" -ForegroundColor Yellow
+function Initialize-AiLandingZoneSubmodule {
+    Write-Host "[!] AI Landing Zone submodule is missing or not fully initialized" -ForegroundColor Yellow
     Write-Host "    Initializing submodule automatically..." -ForegroundColor Cyan
-    
-    # Navigate to repo root
+
     $repoRoot = Join-Path $PSScriptRoot ".."
     Push-Location $repoRoot
     try {
-        # Initialize and update submodules
+        git submodule sync --recursive
         git submodule update --init --recursive
         if ($LASTEXITCODE -ne 0) {
             Write-Host "[X] Failed to initialize git submodules" -ForegroundColor Red
@@ -216,23 +216,25 @@ if (-not (Test-Path $aiLandingZonePath)) {
     } finally {
         Pop-Location
     }
-    
-    # Verify it now exists
-    if (-not (Test-Path $aiLandingZonePath)) {
-        Write-Host "[X] Submodule still not found after initialization!" -ForegroundColor Red
-        exit 1
-    }
+}
+
+if (-not (Test-Path $aiLandingZonePath) -or -not (Test-Path $submoduleMain)) {
+    Initialize-AiLandingZoneSubmodule
+}
+
+if (-not (Test-Path $aiLandingZonePath)) {
+    Write-Host "[X] Submodule still not found after initialization!" -ForegroundColor Red
+    exit 1
+}
+
+if (-not (Test-Path $submoduleMain)) {
+    Write-Host "[X] AI Landing Zone main.bicep not found after submodule initialization!" -ForegroundColor Red
+    Write-Host "    Expected: $submoduleMain" -ForegroundColor Yellow
+    exit 1
 }
 
 Write-Host "[1] Deploying AI Landing Zone submodule..." -ForegroundColor Cyan
 Write-Host ""
-
-$submoduleMain = Join-Path $aiLandingZonePath "main.bicep"
-if (-not (Test-Path $submoduleMain)) {
-    Write-Host "[X] AI Landing Zone main.bicep not found!" -ForegroundColor Red
-    Write-Host "    Expected: $submoduleMain" -ForegroundColor Yellow
-    exit 1
-}
 
 $parentParamsFile = Join-Path $PSScriptRoot ".." "infra" "main.bicepparam"
 if (-not (Test-Path $parentParamsFile)) {
